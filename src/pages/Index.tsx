@@ -1,23 +1,16 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
-
-interface Project {
-  id: string;
-  name: string;
-  version: number;
-  subversion: number;
-  comment: string;
-  timestamp: Date;
-}
+import { Project, fetchProjects, addProject, deleteProject, isSupabaseConfigured } from '@/lib/supabase';
+import { AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const Index = () => {
   const [projectName, setProjectName] = useState('');
@@ -27,14 +20,58 @@ const Index = () => {
   const [editComment, setEditComment] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isNewProject, setIsNewProject] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [localProjects, setLocalProjects] = useState<Project[]>([]);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [deleteVersionLoading, setDeleteVersionLoading] = useState<string | null>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+
+  // Load projects from Supabase on component mount
+  useEffect(() => {
+    const loadProjects = async () => {
+      setLoading(true);
+      try {
+        // Try to fetch from Supabase
+        const projectData = await fetchProjects();
+        setProjects(projectData);
+        
+        // If Supabase is not configured, load from localStorage as fallback
+        if (!isSupabaseConfigured) {
+          const savedProjects = localStorage.getItem('projects');
+          if (savedProjects) {
+            const parsedProjects = JSON.parse(savedProjects).map((project: any) => ({
+              ...project,
+              timestamp: new Date(project.timestamp)
+            }));
+            setLocalProjects(parsedProjects);
+          }
+        }
+        
+        setDataLoaded(true);
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+        toast({
+          title: "Error Loading Data",
+          description: "Could not load your projects. Please check your connection.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
 
   // Get unique project names for selection
-  const uniqueProjects = Array.from(new Set(projects.map(p => p.name)));
+  const allProjects = isSupabaseConfigured ? projects : localProjects;
+  const uniqueProjects = Array.from(new Set(allProjects.map(p => p.name)));
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const finalProjectName = isNewProject ? projectName : selectedProject;
     
-    if (!finalProjectName || !version || !subversion || !editComment) {
+    if (!finalProjectName || version === undefined || version === null || version === '' || subversion === undefined || subversion === null || subversion === '' || !editComment) {
       toast({
         title: "Missing Information",
         description: "Please fill in all fields",
@@ -64,21 +101,7 @@ const Index = () => {
       return;
     }
 
-    // Check if this exact version already exists
-    const existingVersion = projects.find(p => 
-      p.name === finalProjectName && 
-      p.version === versionNum && 
-      p.subversion === subversionNum
-    );
-
-    if (existingVersion) {
-      toast({
-        title: "Version Exists",
-        description: "This version already exists for this project",
-        variant: "destructive"
-      });
-      return;
-    }
+    setLoading(true);
 
     const newProject: Project = {
       id: Date.now().toString(),
@@ -89,23 +112,158 @@ const Index = () => {
       timestamp: new Date()
     };
 
-    setProjects([...projects, newProject]);
+    try {
+      let saved = false;
+      
+      // Try to save to Supabase if configured
+      if (isSupabaseConfigured) {
+        saved = await addProject(newProject);
+      }
+      
+      if (isSupabaseConfigured && saved) {
+        setProjects([...projects, newProject]);
+      } else {
+        // Fallback to localStorage if Supabase is not available or save failed
+        const updatedProjects = [...localProjects, newProject];
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+        saved = true;
+      }
+      
+      if (saved) {
+        // Reset form
+        setProjectName('');
+        setSelectedProject('');
+        setVersion('');
+        setSubversion('');
+        setEditComment('');
+        
+        // Expand the project in the list
+        setExpandedProjects(prev => ({
+          ...prev,
+          [finalProjectName]: true
+        }));
+        
+        toast({
+          title: "Project Added",
+          description: `${finalProjectName} v${versionNum}.${subversionNum} has been added successfully`,
+        });
+      } else {
+        throw new Error("Failed to save project");
+      }
+    } catch (error) {
+      console.error('Error saving project:', error);
+      toast({
+        title: "Save Failed",
+        description: "There was an error saving your project. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle project deletion
+  const handleDeleteProject = async (projectName: string) => {
+    setDeleteLoading(projectName);
     
-    // Reset form
-    setProjectName('');
-    setSelectedProject('');
-    setVersion('');
-    setSubversion('');
-    setEditComment('');
+    try {
+      const projectsToDelete = allProjects.filter(p => p.name === projectName);
+      let deletionSuccess = true;
+      
+      if (isSupabaseConfigured) {
+        // Delete from Supabase
+        for (const project of projectsToDelete) {
+          const success = await deleteProject(project.id);
+          if (!success) {
+            deletionSuccess = false;
+          }
+        }
+        
+        if (deletionSuccess) {
+          setProjects(projects.filter(p => p.name !== projectName));
+        }
+      } else {
+        // Delete from localStorage
+        const updatedProjects = localProjects.filter(p => p.name !== projectName);
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+      }
+      
+      if (deletionSuccess) {
+        setSelectedProject('');
+        toast({
+          title: "Project Deleted",
+          description: `${projectName} has been deleted successfully`,
+        });
+      } else {
+        throw new Error("Failed to delete project");
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast({
+        title: "Delete Failed",
+        description: "There was an error deleting your project. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
+  // Handle version deletion
+  const handleDeleteVersion = async (project: Project) => {
+    const versionIdentifier = `${project.name}-${project.version}-${project.subversion}`;
+    setDeleteVersionLoading(versionIdentifier);
     
-    toast({
-      title: "Project Added",
-      description: `${finalProjectName} v${versionNum}.${subversionNum} has been added successfully`,
-    });
+    try {
+      let deletionSuccess = false;
+      
+      if (isSupabaseConfigured) {
+        // Delete from Supabase
+        deletionSuccess = await deleteProject(project.id);
+        
+        if (deletionSuccess) {
+          setProjects(projects.filter(p => p.id !== project.id));
+        }
+      } else {
+        // Delete from localStorage
+        const updatedProjects = localProjects.filter(p => p.id !== project.id);
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+        deletionSuccess = true;
+      }
+      
+      if (deletionSuccess) {
+        toast({
+          title: "Version Deleted",
+          description: `${project.name} v${project.version}.${project.subversion} has been deleted successfully`,
+        });
+      } else {
+        throw new Error("Failed to delete version");
+      }
+    } catch (error) {
+      console.error('Error deleting version:', error);
+      toast({
+        title: "Delete Failed",
+        description: "There was an error deleting your version. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleteVersionLoading(null);
+    }
+  };
+
+  // Toggle project expansion
+  const toggleProjectExpansion = (projectName: string) => {
+    setExpandedProjects(prev => ({
+      ...prev,
+      [projectName]: !prev[projectName]
+    }));
   };
 
   // Group projects by name and sort versions
-  const groupedProjects = projects.reduce((acc, project) => {
+  const groupedProjects = allProjects.reduce((acc, project) => {
     if (!acc[project.name]) {
       acc[project.name] = [];
     }
@@ -124,21 +282,33 @@ const Index = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="w-full py-8 bg-white/80 backdrop-blur-sm border-b border-slate-200">
-        <div className="container mx-auto px-4">
-          <h1 className="text-4xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            地球online: essay mod
+    <div className="min-h-screen bg-gradient-to-br from-white via-yellow-50 to-blue-50">
+      {/* Header - Updated styling for title with new color theme */}
+      <header className="w-full py-8 bg-white/80 backdrop-blur-sm border-b border-yellow-200">
+        <div className="container mx-auto px-4 flex flex-col items-center">
+          <h1 className="text-5xl font-bold text-center bg-gradient-to-r from-blue-500 to-yellow-500 bg-clip-text text-transparent">
+            地球online
           </h1>
+          <h2 className="text-2xl mt-1 bg-gradient-to-r from-blue-400 to-yellow-400 bg-clip-text text-transparent">
+            essay mod
+          </h2>
         </div>
       </header>
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
+        {!isSupabaseConfigured && (
+          <Alert variant="default" className="mb-6 border-yellow-500 bg-yellow-50">
+            <AlertCircle className="h-5 w-5 text-yellow-600" />
+            <AlertDescription>
+              Supabase is not configured. Your data will be stored locally in this browser and will not sync across devices.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {/* Chatbox Interface */}
         <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
-          <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-t-lg">
+          <CardHeader className="bg-gradient-to-r from-blue-400 to-yellow-400 text-white rounded-t-lg">
             <CardTitle className="text-2xl text-center">Project Management</CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
@@ -148,14 +318,14 @@ const Index = () => {
                 <Button
                   variant={isNewProject ? "default" : "outline"}
                   onClick={() => setIsNewProject(true)}
-                  className="flex-1"
+                  className="flex-1 bg-blue-500 hover:bg-blue-600"
                 >
                   New Project
                 </Button>
                 <Button
                   variant={!isNewProject ? "default" : "outline"}
                   onClick={() => setIsNewProject(false)}
-                  className="flex-1"
+                  className="flex-1 bg-blue-500 hover:bg-blue-600"
                   disabled={uniqueProjects.length === 0}
                 >
                   Existing Project
@@ -174,20 +344,37 @@ const Index = () => {
                   />
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="existingProject">Select Existing Project</Label>
-                  <Select value={selectedProject} onValueChange={setSelectedProject}>
-                    <SelectTrigger className="text-lg">
-                      <SelectValue placeholder="Choose a project..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {uniqueProjects.map((name) => (
-                        <SelectItem key={name} value={name}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="existingProject">Select Existing Project</Label>
+                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                      <SelectTrigger className="text-lg">
+                        <SelectValue placeholder="Choose a project..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uniqueProjects.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {selectedProject && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteProject(selectedProject)}
+                        disabled={deleteLoading === selectedProject}
+                        className="flex items-center gap-1"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleteLoading === selectedProject ? "Deleting..." : "Delete Project"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -227,14 +414,14 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Edit Comment */}
+            {/* Version Name */}
             <div className="space-y-2">
-              <Label htmlFor="editComment">Edit Comment</Label>
+              <Label htmlFor="editComment">Version Name</Label>
               <Textarea
                 id="editComment"
                 value={editComment}
                 onChange={(e) => setEditComment(e.target.value)}
-                placeholder="Describe your changes..."
+                placeholder="Name this version..."
                 className="min-h-[100px] resize-none"
               />
             </div>
@@ -242,45 +429,87 @@ const Index = () => {
             {/* Submit Button */}
             <Button 
               onClick={handleSubmit} 
-              className="w-full text-lg py-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 transition-all duration-200"
+              className="w-full text-lg py-6 bg-gradient-to-r from-blue-500 to-yellow-500 hover:from-blue-600 hover:to-yellow-600 transition-all duration-200"
+              disabled={loading}
             >
-              Add Project Version
+              {loading ? "Saving..." : "Add Project Version"}
             </Button>
           </CardContent>
         </Card>
 
         {/* Project History */}
-        {projects.length > 0 && (
+        {allProjects.length > 0 && (
           <Card className="shadow-lg bg-white/90 backdrop-blur-sm border-0">
-            <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Project History</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <ScrollArea className="max-h-96 w-full">
                 <div className="space-y-4 font-mono text-sm">
                   {Object.entries(groupedProjects).map(([projectName, projectVersions]) => (
-                    <div key={projectName} className="space-y-1">
-                      <div className="font-bold text-blue-600 text-base">
-                        '{projectName}'
+                    <Collapsible 
+                      key={projectName} 
+                      open={expandedProjects[projectName]} 
+                      className="border-b border-slate-200 pb-2 last:border-b-0"
+                    >
+                      <div className="flex items-center justify-between">
+                        <CollapsibleTrigger 
+                          asChild
+                          onClick={() => toggleProjectExpansion(projectName)}
+                        >
+                          <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2">
+                            {expandedProjects[projectName] ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                            {projectName}
+                          </button>
+                        </CollapsibleTrigger>
+                        <Button
+                          variant="ghost"
+                          size="sm" 
+                          className="h-7 w-7 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProject(projectName);
+                          }}
+                          disabled={deleteLoading === projectName}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
                       </div>
-                      <div className="ml-4 space-y-1">
-                        {projectVersions.map((project, index) => (
-                          <div key={project.id} className="flex items-start gap-2 text-slate-600">
-                            <span className="text-slate-400">
-                              {index === projectVersions.length - 1 ? '└──' : '├──'}
-                            </span>
-                            <span className="flex-1">
-                              v{project.version}.{project.subversion}-'{project.comment}'.wip
-                            </span>
+                      <CollapsibleContent className="ml-6 space-y-1">
+                        {projectVersions.map((project) => (
+                          <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
+                            <div className="flex">
+                              <span className="text-slate-400 mr-2">
+                                ├──
+                              </span>
+                              <span>
+                                v{project.version}.{project.subversion}-{project.comment}.wip
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm" 
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleDeleteVersion(project)}
+                              disabled={deleteVersionLoading === `${project.name}-${project.version}-${project.subversion}`}
+                            >
+                              <Trash2 className="h-3 w-3 text-red-500" />
+                            </Button>
                           </div>
                         ))}
-                      </div>
-                    </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))}
                 </div>
               </ScrollArea>
             </CardContent>
           </Card>
+        )}
+
+        {!dataLoaded && loading && (
+          <div className="text-center py-10">
+            <p className="text-slate-600">Loading your projects...</p>
+          </div>
         )}
       </div>
     </div>
