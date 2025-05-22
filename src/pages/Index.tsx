@@ -1,23 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
-
-interface Project {
-  id: string;
-  name: string;
-  version: number;
-  subversion: number;
-  comment: string;
-  timestamp: Date;
-}
+import { Project, fetchProjects, addProject } from '@/lib/supabase';
 
 const Index = () => {
   const [projectName, setProjectName] = useState('');
@@ -27,11 +18,36 @@ const Index = () => {
   const [editComment, setEditComment] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isNewProject, setIsNewProject] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Load projects from Supabase on component mount
+  useEffect(() => {
+    const loadProjects = async () => {
+      setLoading(true);
+      try {
+        const projectData = await fetchProjects();
+        setProjects(projectData);
+        setDataLoaded(true);
+      } catch (error) {
+        console.error('Failed to load projects:', error);
+        toast({
+          title: "Error Loading Data",
+          description: "Could not load your projects. Please check your connection.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
 
   // Get unique project names for selection
   const uniqueProjects = Array.from(new Set(projects.map(p => p.name)));
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const finalProjectName = isNewProject ? projectName : selectedProject;
     
     if (!finalProjectName || !version || !subversion || !editComment) {
@@ -80,6 +96,8 @@ const Index = () => {
       return;
     }
 
+    setLoading(true);
+
     const newProject: Project = {
       id: Date.now().toString(),
       name: finalProjectName,
@@ -89,19 +107,37 @@ const Index = () => {
       timestamp: new Date()
     };
 
-    setProjects([...projects, newProject]);
-    
-    // Reset form
-    setProjectName('');
-    setSelectedProject('');
-    setVersion('');
-    setSubversion('');
-    setEditComment('');
-    
-    toast({
-      title: "Project Added",
-      description: `${finalProjectName} v${versionNum}.${subversionNum} has been added successfully`,
-    });
+    try {
+      // Save to Supabase
+      const saved = await addProject(newProject);
+      
+      if (saved) {
+        setProjects([...projects, newProject]);
+        
+        // Reset form
+        setProjectName('');
+        setSelectedProject('');
+        setVersion('');
+        setSubversion('');
+        setEditComment('');
+        
+        toast({
+          title: "Project Added",
+          description: `${finalProjectName} v${versionNum}.${subversionNum} has been added successfully`,
+        });
+      } else {
+        throw new Error("Failed to save project");
+      }
+    } catch (error) {
+      console.error('Error saving project:', error);
+      toast({
+        title: "Save Failed",
+        description: "There was an error saving your project. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Group projects by name and sort versions
@@ -125,12 +161,15 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Header */}
+      {/* Header - Updated styling for title */}
       <header className="w-full py-8 bg-white/80 backdrop-blur-sm border-b border-slate-200">
-        <div className="container mx-auto px-4">
-          <h1 className="text-4xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            地球online: essay mod
+        <div className="container mx-auto px-4 flex flex-col items-center">
+          <h1 className="text-5xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            地球online
           </h1>
+          <h2 className="text-2xl mt-1 bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
+            essay mod
+          </h2>
         </div>
       </header>
 
@@ -227,14 +266,14 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Edit Comment */}
+            {/* Edit Comment - Changed label to Version Name */}
             <div className="space-y-2">
-              <Label htmlFor="editComment">Edit Comment</Label>
+              <Label htmlFor="editComment">Version Name</Label>
               <Textarea
                 id="editComment"
                 value={editComment}
                 onChange={(e) => setEditComment(e.target.value)}
-                placeholder="Describe your changes..."
+                placeholder="Name this version..."
                 className="min-h-[100px] resize-none"
               />
             </div>
@@ -243,8 +282,9 @@ const Index = () => {
             <Button 
               onClick={handleSubmit} 
               className="w-full text-lg py-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 transition-all duration-200"
+              disabled={loading}
             >
-              Add Project Version
+              {loading ? "Saving..." : "Add Project Version"}
             </Button>
           </CardContent>
         </Card>
@@ -281,6 +321,12 @@ const Index = () => {
               </ScrollArea>
             </CardContent>
           </Card>
+        )}
+
+        {!dataLoaded && loading && (
+          <div className="text-center py-10">
+            <p className="text-slate-600">Loading your projects...</p>
+          </div>
         )}
       </div>
     </div>
