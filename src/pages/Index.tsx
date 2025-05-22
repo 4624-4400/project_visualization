@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,7 +7,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
-import { Project, fetchProjects, addProject } from '@/lib/supabase';
+import { Project, fetchProjects, addProject, isSupabaseConfigured } from '@/lib/supabase';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Index = () => {
   const [projectName, setProjectName] = useState('');
@@ -20,14 +21,29 @@ const Index = () => {
   const [isNewProject, setIsNewProject] = useState(true);
   const [loading, setLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [localProjects, setLocalProjects] = useState<Project[]>([]);
 
   // Load projects from Supabase on component mount
   useEffect(() => {
     const loadProjects = async () => {
       setLoading(true);
       try {
+        // Try to fetch from Supabase
         const projectData = await fetchProjects();
         setProjects(projectData);
+        
+        // If Supabase is not configured, load from localStorage as fallback
+        if (!isSupabaseConfigured) {
+          const savedProjects = localStorage.getItem('projects');
+          if (savedProjects) {
+            const parsedProjects = JSON.parse(savedProjects).map((project: any) => ({
+              ...project,
+              timestamp: new Date(project.timestamp)
+            }));
+            setLocalProjects(parsedProjects);
+          }
+        }
+        
         setDataLoaded(true);
       } catch (error) {
         console.error('Failed to load projects:', error);
@@ -45,7 +61,8 @@ const Index = () => {
   }, []);
 
   // Get unique project names for selection
-  const uniqueProjects = Array.from(new Set(projects.map(p => p.name)));
+  const allProjects = isSupabaseConfigured ? projects : localProjects;
+  const uniqueProjects = Array.from(new Set(allProjects.map(p => p.name)));
 
   const handleSubmit = async () => {
     const finalProjectName = isNewProject ? projectName : selectedProject;
@@ -81,7 +98,7 @@ const Index = () => {
     }
 
     // Check if this exact version already exists
-    const existingVersion = projects.find(p => 
+    const existingVersion = allProjects.find(p => 
       p.name === finalProjectName && 
       p.version === versionNum && 
       p.subversion === subversionNum
@@ -108,12 +125,24 @@ const Index = () => {
     };
 
     try {
-      // Save to Supabase
-      const saved = await addProject(newProject);
+      let saved = false;
+      
+      // Try to save to Supabase if configured
+      if (isSupabaseConfigured) {
+        saved = await addProject(newProject);
+      }
+      
+      if (isSupabaseConfigured && saved) {
+        setProjects([...projects, newProject]);
+      } else {
+        // Fallback to localStorage if Supabase is not available or save failed
+        const updatedProjects = [...localProjects, newProject];
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+        saved = true;
+      }
       
       if (saved) {
-        setProjects([...projects, newProject]);
-        
         // Reset form
         setProjectName('');
         setSelectedProject('');
@@ -141,7 +170,7 @@ const Index = () => {
   };
 
   // Group projects by name and sort versions
-  const groupedProjects = projects.reduce((acc, project) => {
+  const groupedProjects = allProjects.reduce((acc, project) => {
     if (!acc[project.name]) {
       acc[project.name] = [];
     }
@@ -175,6 +204,15 @@ const Index = () => {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
+        {!isSupabaseConfigured && (
+          <Alert variant="warning" className="mb-6 border-amber-500 bg-amber-50">
+            <AlertCircle className="h-5 w-5 text-amber-600" />
+            <AlertDescription>
+              Supabase is not configured. Your data will be stored locally in this browser and will not sync across devices.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {/* Chatbox Interface */}
         <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
           <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-t-lg">
@@ -290,7 +328,7 @@ const Index = () => {
         </Card>
 
         {/* Project History */}
-        {projects.length > 0 && (
+        {allProjects.length > 0 && (
           <Card className="shadow-lg bg-white/90 backdrop-blur-sm border-0">
             <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Project History</CardTitle>

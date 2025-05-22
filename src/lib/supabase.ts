@@ -2,11 +2,19 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase connection info
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Initialize the Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Check if Supabase credentials are available
+const isMissingSupabaseCredentials = !supabaseUrl || !supabaseAnonKey;
+
+// Initialize the Supabase client with fallback for local development
+export const supabase = isMissingSupabaseCredentials
+  ? createClient('https://placeholder-url.supabase.co', 'placeholder-key')
+  : createClient(supabaseUrl, supabaseAnonKey);
+
+// Flag to check if Supabase is properly configured
+export const isSupabaseConfigured = !isMissingSupabaseCredentials;
 
 // Type for our project data structure
 export interface Project {
@@ -20,6 +28,11 @@ export interface Project {
 
 // Function to fetch all projects
 export const fetchProjects = async (): Promise<Project[]> => {
+  if (!isSupabaseConfigured) {
+    console.warn('Supabase is not configured. Using local data only.');
+    return [];
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .select('*')
@@ -40,6 +53,11 @@ export const fetchProjects = async (): Promise<Project[]> => {
 
 // Function to add a new project
 export const addProject = async (project: Omit<Project, 'timestamp'> & { timestamp: Date }): Promise<boolean> => {
+  if (!isSupabaseConfigured) {
+    console.warn('Supabase is not configured. Data will not be saved.');
+    return false;
+  }
+
   // Convert Date to ISO string for Supabase
   const projectData = {
     ...project,
