@@ -1,11 +1,287 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from '@/hooks/use-toast';
+
+interface Project {
+  id: string;
+  name: string;
+  version: number;
+  subversion: number;
+  comment: string;
+  timestamp: Date;
+}
 
 const Index = () => {
+  const [projectName, setProjectName] = useState('');
+  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [version, setVersion] = useState<string>('');
+  const [subversion, setSubversion] = useState<string>('');
+  const [editComment, setEditComment] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isNewProject, setIsNewProject] = useState(true);
+
+  // Get unique project names for selection
+  const uniqueProjects = Array.from(new Set(projects.map(p => p.name)));
+
+  const handleSubmit = () => {
+    const finalProjectName = isNewProject ? projectName : selectedProject;
+    
+    if (!finalProjectName || !version || !subversion || !editComment) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const versionNum = parseInt(version);
+    const subversionNum = parseInt(subversion);
+
+    if (versionNum < 0 || versionNum > 10) {
+      toast({
+        title: "Invalid Version",
+        description: "Version must be between 0 and 10",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (subversionNum < 0 || subversionNum > 20) {
+      toast({
+        title: "Invalid Subversion",
+        description: "Subversion must be between 0 and 20",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if this exact version already exists
+    const existingVersion = projects.find(p => 
+      p.name === finalProjectName && 
+      p.version === versionNum && 
+      p.subversion === subversionNum
+    );
+
+    if (existingVersion) {
+      toast({
+        title: "Version Exists",
+        description: "This version already exists for this project",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const newProject: Project = {
+      id: Date.now().toString(),
+      name: finalProjectName,
+      version: versionNum,
+      subversion: subversionNum,
+      comment: editComment,
+      timestamp: new Date()
+    };
+
+    setProjects([...projects, newProject]);
+    
+    // Reset form
+    setProjectName('');
+    setSelectedProject('');
+    setVersion('');
+    setSubversion('');
+    setEditComment('');
+    
+    toast({
+      title: "Project Added",
+      description: `${finalProjectName} v${versionNum}.${subversionNum} has been added successfully`,
+    });
+  };
+
+  // Group projects by name and sort versions
+  const groupedProjects = projects.reduce((acc, project) => {
+    if (!acc[project.name]) {
+      acc[project.name] = [];
+    }
+    acc[project.name].push(project);
+    return acc;
+  }, {} as Record<string, Project[]>);
+
+  // Sort versions within each project
+  Object.keys(groupedProjects).forEach(projectName => {
+    groupedProjects[projectName].sort((a, b) => {
+      if (a.version !== b.version) {
+        return a.version - b.version;
+      }
+      return a.subversion - b.subversion;
+    });
+  });
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+      {/* Header */}
+      <header className="w-full py-8 bg-white/80 backdrop-blur-sm border-b border-slate-200">
+        <div className="container mx-auto px-4">
+          <h1 className="text-4xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            地球online: essay mod
+          </h1>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-12 max-w-4xl">
+        {/* Chatbox Interface */}
+        <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
+          <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-t-lg">
+            <CardTitle className="text-2xl text-center">Project Management</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {/* Project Selection */}
+            <div className="space-y-4">
+              <div className="flex gap-4 mb-4">
+                <Button
+                  variant={isNewProject ? "default" : "outline"}
+                  onClick={() => setIsNewProject(true)}
+                  className="flex-1"
+                >
+                  New Project
+                </Button>
+                <Button
+                  variant={!isNewProject ? "default" : "outline"}
+                  onClick={() => setIsNewProject(false)}
+                  className="flex-1"
+                  disabled={uniqueProjects.length === 0}
+                >
+                  Existing Project
+                </Button>
+              </div>
+
+              {isNewProject ? (
+                <div className="space-y-2">
+                  <Label htmlFor="projectName">Project Name</Label>
+                  <Input
+                    id="projectName"
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="Enter project name..."
+                    className="text-lg"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="existingProject">Select Existing Project</Label>
+                  <Select value={selectedProject} onValueChange={setSelectedProject}>
+                    <SelectTrigger className="text-lg">
+                      <SelectValue placeholder="Choose a project..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {uniqueProjects.map((name) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            {/* Version Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="version">Version (0-10)</Label>
+                <Select value={version} onValueChange={setVersion}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Version" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 11 }, (_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {i}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="subversion">Subversion (0-20)</Label>
+                <Select value={subversion} onValueChange={setSubversion}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Subversion" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 21 }, (_, i) => (
+                      <SelectItem key={i} value={i.toString()}>
+                        {i}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Edit Comment */}
+            <div className="space-y-2">
+              <Label htmlFor="editComment">Edit Comment</Label>
+              <Textarea
+                id="editComment"
+                value={editComment}
+                onChange={(e) => setEditComment(e.target.value)}
+                placeholder="Describe your changes..."
+                className="min-h-[100px] resize-none"
+              />
+            </div>
+
+            {/* Submit Button */}
+            <Button 
+              onClick={handleSubmit} 
+              className="w-full text-lg py-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 transition-all duration-200"
+            >
+              Add Project Version
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Project History */}
+        {projects.length > 0 && (
+          <Card className="shadow-lg bg-white/90 backdrop-blur-sm border-0">
+            <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-t-lg">
+              <CardTitle className="text-xl text-center">Project History</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <ScrollArea className="max-h-96 w-full">
+                <div className="space-y-4 font-mono text-sm">
+                  {Object.entries(groupedProjects).map(([projectName, projectVersions]) => (
+                    <div key={projectName} className="space-y-1">
+                      <div className="font-bold text-blue-600 text-base">
+                        '{projectName}'
+                      </div>
+                      <div className="ml-4 space-y-1">
+                        {projectVersions.map((project, index) => (
+                          <div key={project.id} className="flex items-start gap-2 text-slate-600">
+                            <span className="text-slate-400">
+                              {index === projectVersions.length - 1 ? '└──' : '├──'}
+                            </span>
+                            <span className="flex-1">
+                              v{project.version}.{project.subversion}-'{project.comment}'.wip
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
