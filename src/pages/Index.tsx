@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { Project, fetchProjects, addProject, deleteProject, isSupabaseConfigured } from '@/lib/supabase';
-import { AlertCircle, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const Index = () => {
   const [projectName, setProjectName] = useState('');
@@ -24,6 +25,8 @@ const Index = () => {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [localProjects, setLocalProjects] = useState<Project[]>([]);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [deleteVersionLoading, setDeleteVersionLoading] = useState<string | null>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
 
   // Load projects from Supabase on component mount
   useEffect(() => {
@@ -69,7 +72,7 @@ const Index = () => {
   const handleSubmit = async () => {
     const finalProjectName = isNewProject ? projectName : selectedProject;
     
-    if (!finalProjectName || !version || !subversion || !editComment) {
+    if (!finalProjectName || version === undefined || version === null || version === '' || subversion === undefined || subversion === null || subversion === '' || !editComment) {
       toast({
         title: "Missing Information",
         description: "Please fill in all fields",
@@ -152,6 +155,12 @@ const Index = () => {
         setSubversion('');
         setEditComment('');
         
+        // Expand the project in the list
+        setExpandedProjects(prev => ({
+          ...prev,
+          [finalProjectName]: true
+        }));
+        
         toast({
           title: "Project Added",
           description: `${finalProjectName} v${versionNum}.${subversionNum} has been added successfully`,
@@ -217,6 +226,57 @@ const Index = () => {
     } finally {
       setDeleteLoading(null);
     }
+  };
+
+  // Handle version deletion
+  const handleDeleteVersion = async (project: Project) => {
+    const versionIdentifier = `${project.name}-${project.version}-${project.subversion}`;
+    setDeleteVersionLoading(versionIdentifier);
+    
+    try {
+      let deletionSuccess = false;
+      
+      if (isSupabaseConfigured) {
+        // Delete from Supabase
+        deletionSuccess = await deleteProject(project.id);
+        
+        if (deletionSuccess) {
+          setProjects(projects.filter(p => p.id !== project.id));
+        }
+      } else {
+        // Delete from localStorage
+        const updatedProjects = localProjects.filter(p => p.id !== project.id);
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+        deletionSuccess = true;
+      }
+      
+      if (deletionSuccess) {
+        toast({
+          title: "Version Deleted",
+          description: `${project.name} v${project.version}.${project.subversion} has been deleted successfully`,
+        });
+      } else {
+        throw new Error("Failed to delete version");
+      }
+    } catch (error) {
+      console.error('Error deleting version:', error);
+      toast({
+        title: "Delete Failed",
+        description: "There was an error deleting your version. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleteVersionLoading(null);
+    }
+  };
+
+  // Toggle project expansion
+  const toggleProjectExpansion = (projectName: string) => {
+    setExpandedProjects(prev => ({
+      ...prev,
+      [projectName]: !prev[projectName]
+    }));
   };
 
   // Group projects by name and sort versions
@@ -404,23 +464,58 @@ const Index = () => {
               <ScrollArea className="max-h-96 w-full">
                 <div className="space-y-4 font-mono text-sm">
                   {Object.entries(groupedProjects).map(([projectName, projectVersions]) => (
-                    <div key={projectName} className="space-y-1">
-                      <div className="font-bold text-blue-600 text-base">
-                        '{projectName}'
+                    <Collapsible 
+                      key={projectName} 
+                      open={expandedProjects[projectName]} 
+                      className="border-b border-slate-200 pb-2 last:border-b-0"
+                    >
+                      <div className="flex items-center justify-between">
+                        <CollapsibleTrigger 
+                          asChild
+                          onClick={() => toggleProjectExpansion(projectName)}
+                        >
+                          <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2">
+                            {expandedProjects[projectName] ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                            '{projectName}'
+                          </button>
+                        </CollapsibleTrigger>
+                        <Button
+                          variant="ghost"
+                          size="sm" 
+                          className="h-7 w-7 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteProject(projectName);
+                          }}
+                          disabled={deleteLoading === projectName}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
                       </div>
-                      <div className="ml-4 space-y-1">
-                        {projectVersions.map((project, index) => (
-                          <div key={project.id} className="flex items-start gap-2 text-slate-600">
-                            <span className="text-slate-400">
-                              {index === projectVersions.length - 1 ? '└──' : '├──'}
-                            </span>
-                            <span className="flex-1">
-                              v{project.version}.{project.subversion}-'{project.comment}'.wip
-                            </span>
+                      <CollapsibleContent className="ml-6 space-y-1">
+                        {projectVersions.map((project) => (
+                          <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
+                            <div className="flex">
+                              <span className="text-slate-400 mr-2">
+                                ├──
+                              </span>
+                              <span>
+                                v{project.version}.{project.subversion}-'{project.comment}'.wip
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm" 
+                              className="h-6 w-6 p-0"
+                              onClick={() => handleDeleteVersion(project)}
+                              disabled={deleteVersionLoading === `${project.name}-${project.version}-${project.subversion}`}
+                            >
+                              <Trash2 className="h-3 w-3 text-red-500" />
+                            </Button>
                           </div>
                         ))}
-                      </div>
-                    </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))}
                 </div>
               </ScrollArea>
