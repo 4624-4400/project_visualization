@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -96,6 +97,22 @@ const Index = () => {
       toast({
         title: "Invalid Subversion",
         description: "Subversion must be between 0 and 20",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Check if this exact version already exists
+    const existingVersion = allProjects.find(p => 
+      p.name === finalProjectName && 
+      p.version === versionNum && 
+      p.subversion === subversionNum
+    );
+
+    if (existingVersion) {
+      toast({
+        title: "Version Exists",
+        description: "This version already exists for this project",
         variant: "destructive"
       });
       return;
@@ -282,14 +299,14 @@ const Index = () => {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-yellow-50 to-blue-50">
-      {/* Header - Updated styling for title with new color theme */}
-      <header className="w-full py-8 bg-white/80 backdrop-blur-sm border-b border-yellow-200">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+      {/* Header - Updated styling for title */}
+      <header className="w-full py-8 bg-white/80 backdrop-blur-sm border-b border-slate-200">
         <div className="container mx-auto px-4 flex flex-col items-center">
-          <h1 className="text-5xl font-bold text-center bg-gradient-to-r from-blue-500 to-yellow-500 bg-clip-text text-transparent">
+          <h1 className="text-5xl font-bold text-center bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
             地球online
           </h1>
-          <h2 className="text-2xl mt-1 bg-gradient-to-r from-blue-400 to-yellow-400 bg-clip-text text-transparent">
+          <h2 className="text-2xl mt-1 bg-gradient-to-r from-blue-500 to-indigo-500 bg-clip-text text-transparent">
             essay mod
           </h2>
         </div>
@@ -298,8 +315,8 @@ const Index = () => {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         {!isSupabaseConfigured && (
-          <Alert variant="default" className="mb-6 border-yellow-500 bg-yellow-50">
-            <AlertCircle className="h-5 w-5 text-yellow-600" />
+          <Alert variant="default" className="mb-6 border-amber-500 bg-amber-50">
+            <AlertCircle className="h-5 w-5 text-amber-600" />
             <AlertDescription>
               Supabase is not configured. Your data will be stored locally in this browser and will not sync across devices.
             </AlertDescription>
@@ -308,7 +325,7 @@ const Index = () => {
         
         {/* Chatbox Interface */}
         <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
-          <CardHeader className="bg-gradient-to-r from-blue-400 to-yellow-400 text-white rounded-t-lg">
+          <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-t-lg">
             <CardTitle className="text-2xl text-center">Project Management</CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
@@ -318,14 +335,14 @@ const Index = () => {
                 <Button
                   variant={isNewProject ? "default" : "outline"}
                   onClick={() => setIsNewProject(true)}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600"
+                  className="flex-1"
                 >
                   New Project
                 </Button>
                 <Button
                   variant={!isNewProject ? "default" : "outline"}
                   onClick={() => setIsNewProject(false)}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600"
+                  className="flex-1"
                   disabled={uniqueProjects.length === 0}
                 >
                   Existing Project
@@ -429,7 +446,7 @@ const Index = () => {
             {/* Submit Button */}
             <Button 
               onClick={handleSubmit} 
-              className="w-full text-lg py-6 bg-gradient-to-r from-blue-500 to-yellow-500 hover:from-blue-600 hover:to-yellow-600 transition-all duration-200"
+              className="w-full text-lg py-6 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 transition-all duration-200"
               disabled={loading}
             >
               {loading ? "Saving..." : "Add Project Version"}
@@ -440,7 +457,7 @@ const Index = () => {
         {/* Project History */}
         {allProjects.length > 0 && (
           <Card className="shadow-lg bg-white/90 backdrop-blur-sm border-0">
-            <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Project History</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -459,7 +476,7 @@ const Index = () => {
                         >
                           <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2">
                             {expandedProjects[projectName] ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
-                            {projectName}
+                            '{projectName}'
                           </button>
                         </CollapsibleTrigger>
                         <Button
@@ -483,7 +500,7 @@ const Index = () => {
                                 ├──
                               </span>
                               <span>
-                                v{project.version}.{project.subversion}-{project.comment}.wip
+                                v{project.version}.{project.subversion}-'{project.comment}'.wip
                               </span>
                             </div>
                             <Button
