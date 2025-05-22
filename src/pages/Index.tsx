@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,8 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
-import { Project, fetchProjects, addProject, isSupabaseConfigured } from '@/lib/supabase';
-import { AlertCircle } from 'lucide-react';
+import { Project, fetchProjects, addProject, deleteProject, isSupabaseConfigured } from '@/lib/supabase';
+import { AlertCircle, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Index = () => {
@@ -22,6 +23,7 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [localProjects, setLocalProjects] = useState<Project[]>([]);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
 
   // Load projects from Supabase on component mount
   useEffect(() => {
@@ -169,6 +171,54 @@ const Index = () => {
     }
   };
 
+  // Handle project deletion
+  const handleDeleteProject = async (projectName: string) => {
+    setDeleteLoading(projectName);
+    
+    try {
+      const projectsToDelete = allProjects.filter(p => p.name === projectName);
+      let deletionSuccess = true;
+      
+      if (isSupabaseConfigured) {
+        // Delete from Supabase
+        for (const project of projectsToDelete) {
+          const success = await deleteProject(project.id);
+          if (!success) {
+            deletionSuccess = false;
+          }
+        }
+        
+        if (deletionSuccess) {
+          setProjects(projects.filter(p => p.name !== projectName));
+        }
+      } else {
+        // Delete from localStorage
+        const updatedProjects = localProjects.filter(p => p.name !== projectName);
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+      }
+      
+      if (deletionSuccess) {
+        setSelectedProject('');
+        toast({
+          title: "Project Deleted",
+          description: `${projectName} has been deleted successfully`,
+        });
+      } else {
+        throw new Error("Failed to delete project");
+      }
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast({
+        title: "Delete Failed",
+        description: "There was an error deleting your project. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
+
   // Group projects by name and sort versions
   const groupedProjects = allProjects.reduce((acc, project) => {
     if (!acc[project.name]) {
@@ -205,7 +255,7 @@ const Index = () => {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         {!isSupabaseConfigured && (
-          <Alert variant="warning" className="mb-6 border-amber-500 bg-amber-50">
+          <Alert variant="default" className="mb-6 border-amber-500 bg-amber-50">
             <AlertCircle className="h-5 w-5 text-amber-600" />
             <AlertDescription>
               Supabase is not configured. Your data will be stored locally in this browser and will not sync across devices.
@@ -251,20 +301,37 @@ const Index = () => {
                   />
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="existingProject">Select Existing Project</Label>
-                  <Select value={selectedProject} onValueChange={setSelectedProject}>
-                    <SelectTrigger className="text-lg">
-                      <SelectValue placeholder="Choose a project..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {uniqueProjects.map((name) => (
-                        <SelectItem key={name} value={name}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="existingProject">Select Existing Project</Label>
+                    <Select value={selectedProject} onValueChange={setSelectedProject}>
+                      <SelectTrigger className="text-lg">
+                        <SelectValue placeholder="Choose a project..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {uniqueProjects.map((name) => (
+                          <SelectItem key={name} value={name}>
+                            {name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {selectedProject && (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteProject(selectedProject)}
+                        disabled={deleteLoading === selectedProject}
+                        className="flex items-center gap-1"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleteLoading === selectedProject ? "Deleting..." : "Delete Project"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -304,7 +371,7 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Edit Comment - Changed label to Version Name */}
+            {/* Version Name */}
             <div className="space-y-2">
               <Label htmlFor="editComment">Version Name</Label>
               <Textarea

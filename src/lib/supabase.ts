@@ -75,3 +75,23 @@ export const addProject = async (project: Omit<Project, 'timestamp'> & { timesta
   
   return true;
 };
+
+// Function to delete a project
+export const deleteProject = async (projectId: string): Promise<boolean> => {
+  if (!isSupabaseConfigured) {
+    console.warn('Supabase is not configured. Data will not be deleted from the server.');
+    return false;
+  }
+
+  const { error } = await supabase
+    .from('projects')
+    .delete()
+    .eq('id', projectId);
+    
+  if (error) {
+    console.error('Error deleting project:', error);
+    return false;
+  }
+  
+  return true;
+};
