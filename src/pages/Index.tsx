@@ -478,13 +478,18 @@ const Index = () => {
                       <CollapsibleContent className="ml-6 space-y-1">
                         {projectVersions.map((project) => (
                           <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
-                            <div className="flex">
-                              <span className="text-slate-400 mr-2">
-                                ├──
-                              </span>
-                              <span>
-                                v{project.version}.{project.subversion}-{project.comment}.wip
-                              </span>
+                            <div className="flex flex-col">
+                              <div className="flex">
+                                <span className="text-slate-400 mr-2">
+                                  ├──
+                                </span>
+                                <span>
+                                  v{project.version}.{project.subversion}-{project.comment}.wip
+                                </span>
+                              </div>
+                              <div className="ml-6 text-xs text-slate-400">
+                                Created: {project.timestamp.toLocaleDateString()} {project.timestamp.toLocaleTimeString()}
+                              </div>
                             </div>
                             <Button
                               variant="ghost"
