@@ -8,8 +8,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { Project, fetchProjects, addProject, deleteProject, updateProjectName, updateVersionComment, isSupabaseConfigured } from '@/lib/supabase';
-import { AlertCircle, ChevronDown, ChevronRight, Trash2, Edit } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ChevronDown, ChevronRight, Trash2, Edit } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const Index = () => {
@@ -449,14 +448,6 @@ const Index = () => {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
-        {!isSupabaseConfigured && (
-          <Alert variant="default" className="mb-6 border-yellow-500 bg-yellow-50">
-            <AlertCircle className="h-5 w-5 text-yellow-600" />
-            <AlertDescription>
-              Supabase is not configured. Your data will be stored locally in this browser and will not sync across devices.
-            </AlertDescription>
-          </Alert>
-        )}
         
         {/* Chatbox Interface */}
         <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
