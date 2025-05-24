@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { Project, fetchProjects, addProject, deleteProject, isSupabaseConfigured } from '@/lib/supabase';
-import { AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronRight, Trash2, Edit } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
@@ -26,6 +26,10 @@ const Index = () => {
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [deleteVersionLoading, setDeleteVersionLoading] = useState<string | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Record<string, boolean>>({});
+  const [editingProject, setEditingProject] = useState<string | null>(null);
+  const [editingVersion, setEditingVersion] = useState<string | null>(null);
+  const [editProjectName, setEditProjectName] = useState('');
+  const [editVersionComment, setEditVersionComment] = useState('');
 
   // Load projects from Supabase on component mount
   useEffect(() => {
@@ -281,6 +285,59 @@ const Index = () => {
     });
   });
 
+  // Handle project name edit
+  const handleEditProject = (projectName: string) => {
+    setEditingProject(projectName);
+    setEditProjectName(projectName);
+  };
+
+  const handleSaveProjectEdit = async () => {
+    if (!editProjectName.trim() || !editingProject) return;
+    
+    // For now, we'll just show a toast as this would require backend changes
+    // to update all versions of a project with the new name
+    toast({
+      title: "Feature Coming Soon",
+      description: "Project name editing will be available in a future update.",
+      variant: "default"
+    });
+    
+    setEditingProject(null);
+    setEditProjectName('');
+  };
+
+  const handleCancelProjectEdit = () => {
+    setEditingProject(null);
+    setEditProjectName('');
+  };
+
+  // Handle version comment edit
+  const handleEditVersion = (project: Project) => {
+    const versionId = `${project.name}-${project.version}-${project.subversion}`;
+    setEditingVersion(versionId);
+    setEditVersionComment(project.comment);
+  };
+
+  const handleSaveVersionEdit = async (project: Project) => {
+    if (!editVersionComment.trim()) return;
+    
+    // For now, we'll just show a toast as this would require backend changes
+    // to update the comment field
+    toast({
+      title: "Feature Coming Soon", 
+      description: "Version name editing will be available in a future update.",
+      variant: "default"
+    });
+    
+    setEditingVersion(null);
+    setEditVersionComment('');
+  };
+
+  const handleCancelVersionEdit = () => {
+    setEditingVersion(null);
+    setEditVersionComment('');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-yellow-50 to-blue-50">
       {/* Header - Updated styling for title with new color theme */}
@@ -459,47 +516,112 @@ const Index = () => {
                         >
                           <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2">
                             {expandedProjects[projectName] ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
-                            {projectName}
+                            {editingProject === projectName ? (
+                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                <Input
+                                  value={editProjectName}
+                                  onChange={(e) => setEditProjectName(e.target.value)}
+                                  className="h-6 text-sm"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveProjectEdit();
+                                    if (e.key === 'Escape') handleCancelProjectEdit();
+                                  }}
+                                  autoFocus
+                                />
+                                <Button size="sm" className="h-6 px-2" onClick={handleSaveProjectEdit}>Save</Button>
+                                <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelProjectEdit}>Cancel</Button>
+                              </div>
+                            ) : (
+                              projectName
+                            )}
                           </button>
                         </CollapsibleTrigger>
-                        <Button
-                          variant="ghost"
-                          size="sm" 
-                          className="h-7 w-7 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteProject(projectName);
-                          }}
-                          disabled={deleteLoading === projectName}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm" 
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditProject(projectName);
+                            }}
+                            disabled={editingProject === projectName}
+                          >
+                            <Edit className="h-4 w-4 text-blue-500" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm" 
+                            className="h-7 w-7 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteProject(projectName);
+                            }}
+                            disabled={deleteLoading === projectName}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
                       </div>
                       <CollapsibleContent className="ml-6 space-y-1">
-                        {projectVersions.map((project) => (
-                          <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
-                            <div className="flex items-center">
-                              <span className="text-slate-400 mr-2">
-                                ├──
-                              </span>
-                              <span>
-                                v{project.version}.{project.subversion}-{project.comment}.wip 
-                                <span className="ml-2 text-xs text-slate-400">
-                                  ({project.timestamp.toLocaleDateString()})
+                        {projectVersions.map((project) => {
+                          const versionId = `${project.name}-${project.version}-${project.subversion}`;
+                          return (
+                            <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
+                              <div className="flex items-center flex-1">
+                                <span className="text-slate-400 mr-2">
+                                  ├──
                                 </span>
-                              </span>
+                                {editingVersion === versionId ? (
+                                  <div className="flex items-center gap-2 flex-1">
+                                    <span>v{project.version}.{project.subversion}-</span>
+                                    <Input
+                                      value={editVersionComment}
+                                      onChange={(e) => setEditVersionComment(e.target.value)}
+                                      className="h-6 text-sm flex-1"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveVersionEdit(project);
+                                        if (e.key === 'Escape') handleCancelVersionEdit();
+                                      }}
+                                      autoFocus
+                                    />
+                                    <span>.wip ({project.timestamp.toLocaleDateString()})</span>
+                                    <Button size="sm" className="h-6 px-2" onClick={() => handleSaveVersionEdit(project)}>Save</Button>
+                                    <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelVersionEdit}>Cancel</Button>
+                                  </div>
+                                ) : (
+                                  <span>
+                                    v{project.version}.{project.subversion}-{project.comment}.wip 
+                                    <span className="ml-2 text-xs text-slate-400">
+                                      ({project.timestamp.toLocaleDateString()})
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                              {editingVersion !== versionId && (
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm" 
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => handleEditVersion(project)}
+                                  >
+                                    <Edit className="h-3 w-3 text-blue-500" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm" 
+                                    className="h-6 w-6 p-0"
+                                    onClick={() => handleDeleteVersion(project)}
+                                    disabled={deleteVersionLoading === versionId}
+                                  >
+                                    <Trash2 className="h-3 w-3 text-red-500" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm" 
-                              className="h-6 w-6 p-0"
-                              onClick={() => handleDeleteVersion(project)}
-                              disabled={deleteVersionLoading === `${project.name}-${project.version}-${project.subversion}`}
-                            >
-                              <Trash2 className="h-3 w-3 text-red-500" />
-                            </Button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </CollapsibleContent>
                     </Collapsible>
                   ))}
