@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase connection info
@@ -90,6 +89,46 @@ export const deleteProject = async (projectId: string): Promise<boolean> => {
     
   if (error) {
     console.error('Error deleting project:', error);
+    return false;
+  }
+  
+  return true;
+};
+
+// Function to update project name for all versions
+export const updateProjectName = async (oldName: string, newName: string): Promise<boolean> => {
+  if (!isSupabaseConfigured) {
+    console.warn('Supabase is not configured. Data will not be updated on the server.');
+    return false;
+  }
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ name: newName })
+    .eq('name', oldName);
+    
+  if (error) {
+    console.error('Error updating project name:', error);
+    return false;
+  }
+  
+  return true;
+};
+
+// Function to update version comment
+export const updateVersionComment = async (projectId: string, newComment: string): Promise<boolean> => {
+  if (!isSupabaseConfigured) {
+    console.warn('Supabase is not configured. Data will not be updated on the server.');
+    return false;
+  }
+
+  const { error } = await supabase
+    .from('projects')
+    .update({ comment: newComment })
+    .eq('id', projectId);
+    
+  if (error) {
+    console.error('Error updating version comment:', error);
     return false;
   }
   

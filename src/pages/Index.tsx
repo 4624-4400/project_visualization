@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
-import { Project, fetchProjects, addProject, deleteProject, isSupabaseConfigured } from '@/lib/supabase';
+import { Project, fetchProjects, addProject, deleteProject, updateProjectName, updateVersionComment, isSupabaseConfigured } from '@/lib/supabase';
 import { AlertCircle, ChevronDown, ChevronRight, Trash2, Edit } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -292,18 +292,68 @@ const Index = () => {
   };
 
   const handleSaveProjectEdit = async () => {
-    if (!editProjectName.trim() || !editingProject) return;
+    if (!editProjectName.trim() || !editingProject || editProjectName === editingProject) {
+      setEditingProject(null);
+      setEditProjectName('');
+      return;
+    }
     
-    // For now, we'll just show a toast as this would require backend changes
-    // to update all versions of a project with the new name
-    toast({
-      title: "Feature Coming Soon",
-      description: "Project name editing will be available in a future update.",
-      variant: "default"
-    });
+    setLoading(true);
     
-    setEditingProject(null);
-    setEditProjectName('');
+    try {
+      let updateSuccess = false;
+      
+      if (isSupabaseConfigured) {
+        // Update in Supabase
+        updateSuccess = await updateProjectName(editingProject, editProjectName);
+        
+        if (updateSuccess) {
+          // Update local state
+          setProjects(prevProjects => 
+            prevProjects.map(project => 
+              project.name === editingProject 
+                ? { ...project, name: editProjectName }
+                : project
+            )
+          );
+        }
+      } else {
+        // Update in localStorage
+        const updatedProjects = localProjects.map(project => 
+          project.name === editingProject 
+            ? { ...project, name: editProjectName }
+            : project
+        );
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+        updateSuccess = true;
+      }
+      
+      if (updateSuccess) {
+        // Update selectedProject if it was the one being edited
+        if (selectedProject === editingProject) {
+          setSelectedProject(editProjectName);
+        }
+        
+        toast({
+          title: "Project Updated",
+          description: `Project name changed from "${editingProject}" to "${editProjectName}"`,
+        });
+      } else {
+        throw new Error("Failed to update project name");
+      }
+    } catch (error) {
+      console.error('Error updating project name:', error);
+      toast({
+        title: "Update Failed",
+        description: "There was an error updating the project name. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+      setEditingProject(null);
+      setEditProjectName('');
+    }
   };
 
   const handleCancelProjectEdit = () => {
@@ -319,18 +369,63 @@ const Index = () => {
   };
 
   const handleSaveVersionEdit = async (project: Project) => {
-    if (!editVersionComment.trim()) return;
+    if (!editVersionComment.trim() || editVersionComment === project.comment) {
+      setEditingVersion(null);
+      setEditVersionComment('');
+      return;
+    }
     
-    // For now, we'll just show a toast as this would require backend changes
-    // to update the comment field
-    toast({
-      title: "Feature Coming Soon", 
-      description: "Version name editing will be available in a future update.",
-      variant: "default"
-    });
+    setLoading(true);
     
-    setEditingVersion(null);
-    setEditVersionComment('');
+    try {
+      let updateSuccess = false;
+      
+      if (isSupabaseConfigured) {
+        // Update in Supabase
+        updateSuccess = await updateVersionComment(project.id, editVersionComment);
+        
+        if (updateSuccess) {
+          // Update local state
+          setProjects(prevProjects => 
+            prevProjects.map(p => 
+              p.id === project.id 
+                ? { ...p, comment: editVersionComment }
+                : p
+            )
+          );
+        }
+      } else {
+        // Update in localStorage
+        const updatedProjects = localProjects.map(p => 
+          p.id === project.id 
+            ? { ...p, comment: editVersionComment }
+            : p
+        );
+        setLocalProjects(updatedProjects);
+        localStorage.setItem('projects', JSON.stringify(updatedProjects));
+        updateSuccess = true;
+      }
+      
+      if (updateSuccess) {
+        toast({
+          title: "Version Updated",
+          description: `Version comment updated to "${editVersionComment}"`,
+        });
+      } else {
+        throw new Error("Failed to update version comment");
+      }
+    } catch (error) {
+      console.error('Error updating version comment:', error);
+      toast({
+        title: "Update Failed", 
+        description: "There was an error updating the version comment. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+      setEditingVersion(null);
+      setEditVersionComment('');
+    }
   };
 
   const handleCancelVersionEdit = () => {
