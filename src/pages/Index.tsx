@@ -589,128 +589,146 @@ const Index = () => {
             <CardContent className="p-6">
               <ScrollArea className="max-h-96 w-full">
                 <div className="space-y-4 font-mono text-sm">
-                  {Object.entries(groupedProjects).map(([projectName, projectVersions]) => (
-                    <Collapsible 
-                      key={projectName} 
-                      open={expandedProjects[projectName]} 
-                      className="border-b border-slate-200 pb-2 last:border-b-0"
-                    >
-                      <div className="flex items-center justify-between">
-                        <CollapsibleTrigger 
-                          asChild
-                          onClick={() => toggleProjectExpansion(projectName)}
-                        >
-                          <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2">
-                            {expandedProjects[projectName] ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
-                            {editingProject === projectName ? (
-                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <Input
-                                  value={editProjectName}
-                                  onChange={(e) => setEditProjectName(e.target.value)}
-                                  className="h-6 text-sm"
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSaveProjectEdit();
-                                    if (e.key === 'Escape') handleCancelProjectEdit();
-                                  }}
-                                  autoFocus
-                                />
-                                <Button size="sm" className="h-6 px-2" onClick={handleSaveProjectEdit}>Save</Button>
-                                <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelProjectEdit}>Cancel</Button>
+                  {Object.entries(groupedProjects).map(([projectName, projectVersions]) => {
+                    const isExpanded = expandedProjects[projectName];
+                    const projectCreationDate = projectVersions[0]?.timestamp;
+                    
+                    return (
+                      <Collapsible 
+                        key={projectName} 
+                        open={isExpanded} 
+                        className="border-b border-slate-200 pb-2 last:border-b-0"
+                      >
+                        <div className="flex items-center justify-between">
+                          <CollapsibleTrigger 
+                            asChild
+                            onClick={() => toggleProjectExpansion(projectName)}
+                          >
+                            <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2 flex-1">
+                              {isExpanded ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                              <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center gap-3">
+                                  {editingProject === projectName ? (
+                                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                      <Input
+                                        value={editProjectName}
+                                        onChange={(e) => setEditProjectName(e.target.value)}
+                                        className="h-6 text-sm"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveProjectEdit();
+                                          if (e.key === 'Escape') handleCancelProjectEdit();
+                                        }}
+                                        autoFocus
+                                      />
+                                      <Button size="sm" className="h-6 px-2" onClick={handleSaveProjectEdit}>Save</Button>
+                                      <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelProjectEdit}>Cancel</Button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span>{projectName}</span>
+                                      {!isExpanded && projectCreationDate && (
+                                        <span className="text-xs text-slate-400 font-normal">
+                                          (created {projectCreationDate.toLocaleDateString()})
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                            ) : (
-                              projectName
-                            )}
-                          </button>
-                        </CollapsibleTrigger>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm" 
-                            className="h-7 w-7 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditProject(projectName);
-                            }}
-                            disabled={editingProject === projectName}
-                          >
-                            <Edit className="h-4 w-4 text-blue-500" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm" 
-                            className="h-7 w-7 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteProject(projectName);
-                            }}
-                            disabled={deleteLoading === projectName}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
+                            </button>
+                          </CollapsibleTrigger>
+                          {!isExpanded && (
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm" 
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditProject(projectName);
+                                }}
+                                disabled={editingProject === projectName}
+                              >
+                                <Edit className="h-4 w-4 text-blue-500" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm" 
+                                className="h-7 w-7 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteProject(projectName);
+                                }}
+                                disabled={deleteLoading === projectName}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <CollapsibleContent className="ml-6 space-y-1">
-                        {projectVersions.map((project) => {
-                          const versionId = `${project.name}-${project.version}-${project.subversion}`;
-                          return (
-                            <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
-                              <div className="flex items-center flex-1">
-                                <span className="text-slate-400 mr-2">
-                                  ├──
-                                </span>
-                                {editingVersion === versionId ? (
-                                  <div className="flex items-center gap-2 flex-1">
-                                    <span>v{project.version}.{project.subversion}-</span>
-                                    <Input
-                                      value={editVersionComment}
-                                      onChange={(e) => setEditVersionComment(e.target.value)}
-                                      className="h-6 text-sm flex-1"
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveVersionEdit(project);
-                                        if (e.key === 'Escape') handleCancelVersionEdit();
-                                      }}
-                                      autoFocus
-                                    />
-                                    <span>.wip ({project.timestamp.toLocaleDateString()})</span>
-                                    <Button size="sm" className="h-6 px-2" onClick={() => handleSaveVersionEdit(project)}>Save</Button>
-                                    <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelVersionEdit}>Cancel</Button>
-                                  </div>
-                                ) : (
-                                  <span>
-                                    v{project.version}.{project.subversion}-{project.comment}.wip 
-                                    <span className="ml-2 text-xs text-slate-400">
-                                      ({project.timestamp.toLocaleDateString()})
-                                    </span>
+                        <CollapsibleContent className="ml-6 space-y-1">
+                          {projectVersions.map((project) => {
+                            const versionId = `${project.name}-${project.version}-${project.subversion}`;
+                            return (
+                              <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
+                                <div className="flex items-center flex-1">
+                                  <span className="text-slate-400 mr-2">
+                                    ├──
                                   </span>
+                                  {editingVersion === versionId ? (
+                                    <div className="flex items-center gap-2 flex-1">
+                                      <span>v{project.version}.{project.subversion}-</span>
+                                      <Input
+                                        value={editVersionComment}
+                                        onChange={(e) => setEditVersionComment(e.target.value)}
+                                        className="h-6 text-sm flex-1"
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveVersionEdit(project);
+                                          if (e.key === 'Escape') handleCancelVersionEdit();
+                                        }}
+                                        autoFocus
+                                      />
+                                      <span>.wip ({project.timestamp.toLocaleDateString()})</span>
+                                      <Button size="sm" className="h-6 px-2" onClick={() => handleSaveVersionEdit(project)}>Save</Button>
+                                      <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelVersionEdit}>Cancel</Button>
+                                    </div>
+                                  ) : (
+                                    <span>
+                                      v{project.version}.{project.subversion}-{project.comment}.wip 
+                                      <span className="ml-2 text-xs text-slate-400">
+                                        ({project.timestamp.toLocaleDateString()})
+                                      </span>
+                                    </span>
+                                  )}
+                                </div>
+                                {editingVersion !== versionId && (
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm" 
+                                      className="h-6 w-6 p-0"
+                                      onClick={() => handleEditVersion(project)}
+                                    >
+                                      <Edit className="h-3 w-3 text-blue-500" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm" 
+                                      className="h-6 w-6 p-0"
+                                      onClick={() => handleDeleteVersion(project)}
+                                      disabled={deleteVersionLoading === versionId}
+                                    >
+                                      <Trash2 className="h-3 w-3 text-red-500" />
+                                    </Button>
+                                  </div>
                                 )}
                               </div>
-                              {editingVersion !== versionId && (
-                                <div className="flex items-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm" 
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => handleEditVersion(project)}
-                                  >
-                                    <Edit className="h-3 w-3 text-blue-500" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm" 
-                                    className="h-6 w-6 p-0"
-                                    onClick={() => handleDeleteVersion(project)}
-                                    disabled={deleteVersionLoading === versionId}
-                                  >
-                                    <Trash2 className="h-3 w-3 text-red-500" />
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ))}
+                            );
+                          })}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    );
+                  })}
                 </div>
               </ScrollArea>
             </CardContent>
