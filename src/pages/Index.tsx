@@ -628,7 +628,7 @@ const Index = () => {
                                       <span>{projectName}</span>
                                       {!isExpanded && projectCreationDate && (
                                         <span className="text-xs text-slate-400 font-normal">
-                                          (created {projectCreationDate.toLocaleDateString()})
+                                          ({projectCreationDate.toLocaleDateString()})
                                         </span>
                                       )}
                                     </>
