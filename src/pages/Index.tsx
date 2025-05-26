@@ -513,41 +513,6 @@ const Index = () => {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         
-        {/* Export/Import Section */}
-        <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
-          <CardHeader className="bg-gradient-to-r from-green-400 to-blue-400 text-white rounded-t-lg">
-            <CardTitle className="text-xl text-center">Data Management</CardTitle>
-          </CardHeader>
-          <CardContent className="p-6">
-            <div className="flex gap-4 justify-center">
-              <Button
-                onClick={handleExportData}
-                className="flex items-center gap-2 bg-green-500 hover:bg-green-600"
-                disabled={allProjects.length === 0}
-              >
-                <Download className="h-4 w-4" />
-                Export Data
-              </Button>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportData}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  id="import-file"
-                />
-                <Button className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600">
-                  <Upload className="h-4 w-4" />
-                  Import Data
-                </Button>
-              </div>
-            </div>
-            <p className="text-sm text-gray-600 text-center mt-3">
-              Export your data to save it as a file on your computer, or import previously saved data.
-            </p>
-          </CardContent>
-        </Card>
-
         {/* Chatbox Interface */}
         <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
           <CardHeader className="bg-gradient-to-r from-blue-400 to-yellow-400 text-white rounded-t-lg">
@@ -681,7 +646,7 @@ const Index = () => {
 
         {/* Project History */}
         {allProjects.length > 0 && (
-          <Card className="shadow-lg bg-white/90 backdrop-blur-sm border-0">
+          <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
             <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Project History</CardTitle>
             </CardHeader>
@@ -833,6 +798,45 @@ const Index = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Data Management Section - Moved below and made smaller */}
+        <Card className="shadow-lg bg-white/90 backdrop-blur-sm border-0">
+          <CardHeader className="bg-gradient-to-r from-blue-400 to-yellow-400 text-white rounded-t-lg">
+            <CardTitle className="text-lg text-center">Data Management</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="flex gap-3 justify-center">
+              <Button
+                onClick={handleExportData}
+                className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600"
+                disabled={allProjects.length === 0}
+                size="sm"
+              >
+                <Download className="h-4 w-4" />
+                Export Data
+              </Button>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportData}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  id="import-file"
+                />
+                <Button 
+                  className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600"
+                  size="sm"
+                >
+                  <Upload className="h-4 w-4" />
+                  Import Data
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 text-center mt-2">
+              Export your data to save it as a file on your computer, or import previously saved data.
+            </p>
+          </CardContent>
+        </Card>
 
         {!dataLoaded && loading && (
           <div className="text-center py-10">
