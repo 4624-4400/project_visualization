@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from '@/hooks/use-toast';
 import { Project, fetchProjects, addProject, deleteProject, updateProjectName, updateVersionComment, isSupabaseConfigured } from '@/lib/supabase';
-import { ChevronDown, ChevronRight, Trash2, Edit } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Edit, Download, Upload } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const Index = () => {
@@ -70,6 +70,70 @@ const Index = () => {
   // Get unique project names for selection
   const allProjects = isSupabaseConfigured ? projects : localProjects;
   const uniqueProjects = Array.from(new Set(allProjects.map(p => p.name)));
+
+  // Export data to JSON file
+  const handleExportData = () => {
+    const dataToExport = isSupabaseConfigured ? projects : localProjects;
+    const dataStr = JSON.stringify(dataToExport, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(dataBlob);
+    link.download = `essay-mod-projects-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    
+    toast({
+      title: "Data Exported",
+      description: "Your project data has been downloaded as a JSON file",
+    });
+  };
+
+  // Import data from JSON file
+  const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedData = JSON.parse(e.target?.result as string);
+        
+        // Validate the imported data structure
+        if (!Array.isArray(importedData)) {
+          throw new Error("Invalid data format");
+        }
+
+        // Convert timestamp strings back to Date objects
+        const processedData = importedData.map((project: any) => ({
+          ...project,
+          timestamp: new Date(project.timestamp)
+        }));
+
+        if (isSupabaseConfigured) {
+          setProjects(processedData);
+        } else {
+          setLocalProjects(processedData);
+          localStorage.setItem('projects', JSON.stringify(processedData));
+        }
+
+        toast({
+          title: "Data Imported",
+          description: `Successfully imported ${processedData.length} project entries`,
+        });
+      } catch (error) {
+        console.error('Error importing data:', error);
+        toast({
+          title: "Import Failed",
+          description: "The file format is not valid. Please check your file and try again.",
+          variant: "destructive"
+        });
+      }
+    };
+    
+    reader.readAsText(file);
+    // Reset the input value so the same file can be selected again
+    event.target.value = '';
+  };
 
   const handleSubmit = async () => {
     const finalProjectName = isNewProject ? projectName : selectedProject;
@@ -449,6 +513,41 @@ const Index = () => {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         
+        {/* Export/Import Section */}
+        <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
+          <CardHeader className="bg-gradient-to-r from-green-400 to-blue-400 text-white rounded-t-lg">
+            <CardTitle className="text-xl text-center">Data Management</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="flex gap-4 justify-center">
+              <Button
+                onClick={handleExportData}
+                className="flex items-center gap-2 bg-green-500 hover:bg-green-600"
+                disabled={allProjects.length === 0}
+              >
+                <Download className="h-4 w-4" />
+                Export Data
+              </Button>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportData}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  id="import-file"
+                />
+                <Button className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600">
+                  <Upload className="h-4 w-4" />
+                  Import Data
+                </Button>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 text-center mt-3">
+              Export your data to save it as a file on your computer, or import previously saved data.
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Chatbox Interface */}
         <Card className="mb-8 shadow-lg bg-white/90 backdrop-blur-sm border-0">
           <CardHeader className="bg-gradient-to-r from-blue-400 to-yellow-400 text-white rounded-t-lg">
