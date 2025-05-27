@@ -71,6 +71,22 @@ const Index = () => {
   const allProjects = isSupabaseConfigured ? projects : localProjects;
   const uniqueProjects = Array.from(new Set(allProjects.map(p => p.name)));
 
+  // Get latest version for selected project
+  const getLatestVersion = (projectName: string) => {
+    const projectVersions = allProjects.filter(p => p.name === projectName);
+    if (projectVersions.length === 0) return null;
+    
+    // Sort by version and subversion to get the latest
+    const sortedVersions = projectVersions.sort((a, b) => {
+      if (a.version !== b.version) {
+        return b.version - a.version; // Descending order
+      }
+      return b.subversion - a.subversion; // Descending order
+    });
+    
+    return sortedVersions[0];
+  };
+
   // Export data to JSON file
   const handleExportData = () => {
     const dataToExport = isSupabaseConfigured ? projects : localProjects;
@@ -566,6 +582,16 @@ const Index = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    
+                    {/* Latest version display */}
+                    {selectedProject && (() => {
+                      const latestVersion = getLatestVersion(selectedProject);
+                      return latestVersion ? (
+                        <p className="text-sm text-gray-500 mt-1">
+                          Latest version: v{latestVersion.version}.{latestVersion.subversion} - {latestVersion.comment}
+                        </p>
+                      ) : null;
+                    })()}
                   </div>
                   
                   {selectedProject && (
