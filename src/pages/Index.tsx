@@ -58,7 +58,7 @@ const Index = () => {
         const savedCompletedProjects = localStorage.getItem('completedProjects');
         if (savedCompletedProjects) {
           const completedProjectsArray: string[] = JSON.parse(savedCompletedProjects);
-          setCompletedProjects(new Set<string>(completedProjectsArray));
+          setCompletedProjects(new Set(completedProjectsArray));
         }
         
         setDataLoaded(true);
@@ -915,7 +915,7 @@ const Index = () => {
         {/* Completed Projects */}
         {completedProjectNames.length > 0 && (
           <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
-            <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Completed Projects</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
