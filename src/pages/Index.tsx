@@ -107,7 +107,7 @@ const Index = () => {
 
   // Toggle completed status for a project
   const toggleProjectCompleted = (projectName: string) => {
-    const newCompletedProjects = new Set(completedProjects);
+    const newCompletedProjects = new Set<string>(completedProjects);
     if (newCompletedProjects.has(projectName)) {
       newCompletedProjects.delete(projectName);
     } else {
