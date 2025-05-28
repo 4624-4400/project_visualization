@@ -6,9 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { toast } from '@/hooks/use-toast';
 import { Project, fetchProjects, addProject, deleteProject, updateProjectName, updateVersionComment, isSupabaseConfigured } from '@/lib/supabase';
-import { ChevronDown, ChevronRight, Trash2, Edit, Download, Upload } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Edit, Download, Upload, CheckCircle, Circle } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const Index = () => {
@@ -29,6 +30,8 @@ const Index = () => {
   const [editingVersion, setEditingVersion] = useState<string | null>(null);
   const [editProjectName, setEditProjectName] = useState('');
   const [editVersionComment, setEditVersionComment] = useState('');
+  const [completedProjects, setCompletedProjects] = useState<Set<string>>(new Set());
+  const [expandedCompletedProjects, setExpandedCompletedProjects] = useState<Record<string, boolean>>({});
 
   // Load projects from Supabase on component mount
   useEffect(() => {
@@ -49,6 +52,12 @@ const Index = () => {
             }));
             setLocalProjects(parsedProjects);
           }
+        }
+        
+        // Load completed projects from localStorage
+        const savedCompletedProjects = localStorage.getItem('completedProjects');
+        if (savedCompletedProjects) {
+          setCompletedProjects(new Set(JSON.parse(savedCompletedProjects)));
         }
         
         setDataLoaded(true);
@@ -87,9 +96,32 @@ const Index = () => {
     return sortedVersions[0];
   };
 
+  // Get latest timestamp for a project (for sorting)
+  const getLatestProjectTimestamp = (projectName: string) => {
+    const projectVersions = allProjects.filter(p => p.name === projectName);
+    if (projectVersions.length === 0) return new Date(0);
+    
+    return new Date(Math.max(...projectVersions.map(p => p.timestamp.getTime())));
+  };
+
+  // Toggle completed status for a project
+  const toggleProjectCompleted = (projectName: string) => {
+    const newCompletedProjects = new Set(completedProjects);
+    if (newCompletedProjects.has(projectName)) {
+      newCompletedProjects.delete(projectName);
+    } else {
+      newCompletedProjects.add(projectName);
+    }
+    setCompletedProjects(newCompletedProjects);
+    localStorage.setItem('completedProjects', JSON.stringify(Array.from(newCompletedProjects)));
+  };
+
   // Export data to JSON file
   const handleExportData = () => {
-    const dataToExport = isSupabaseConfigured ? projects : localProjects;
+    const dataToExport = {
+      projects: isSupabaseConfigured ? projects : localProjects,
+      completedProjects: Array.from(completedProjects)
+    };
     const dataStr = JSON.stringify(dataToExport, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     
@@ -114,13 +146,21 @@ const Index = () => {
       try {
         const importedData = JSON.parse(e.target?.result as string);
         
-        // Validate the imported data structure
-        if (!Array.isArray(importedData)) {
-          throw new Error("Invalid data format");
+        // Handle both old format (just projects array) and new format (object with projects and completedProjects)
+        let projectsData, completedProjectsData;
+        
+        if (Array.isArray(importedData)) {
+          // Old format - just projects array
+          projectsData = importedData;
+          completedProjectsData = [];
+        } else {
+          // New format - object with projects and completedProjects
+          projectsData = importedData.projects || [];
+          completedProjectsData = importedData.completedProjects || [];
         }
 
         // Convert timestamp strings back to Date objects
-        const processedData = importedData.map((project: any) => ({
+        const processedData = projectsData.map((project: any) => ({
           ...project,
           timestamp: new Date(project.timestamp)
         }));
@@ -131,6 +171,11 @@ const Index = () => {
           setLocalProjects(processedData);
           localStorage.setItem('projects', JSON.stringify(processedData));
         }
+
+        // Set completed projects
+        const newCompletedProjects = new Set(completedProjectsData);
+        setCompletedProjects(newCompletedProjects);
+        localStorage.setItem('completedProjects', JSON.stringify(completedProjectsData));
 
         toast({
           title: "Data Imported",
@@ -345,6 +390,14 @@ const Index = () => {
     }));
   };
 
+  // Toggle completed project expansion
+  const toggleCompletedProjectExpansion = (projectName: string) => {
+    setExpandedCompletedProjects(prev => ({
+      ...prev,
+      [projectName]: !prev[projectName]
+    }));
+  };
+
   // Group projects by name and sort versions
   const groupedProjects = allProjects.reduce((acc, project) => {
     if (!acc[project.name]) {
@@ -363,6 +416,178 @@ const Index = () => {
       return a.subversion - b.subversion;
     });
   });
+
+  // Separate active and completed projects, then sort by latest update
+  const activeProjectNames = Object.keys(groupedProjects)
+    .filter(name => !completedProjects.has(name))
+    .sort((a, b) => getLatestProjectTimestamp(b).getTime() - getLatestProjectTimestamp(a).getTime());
+  
+  const completedProjectNames = Object.keys(groupedProjects)
+    .filter(name => completedProjects.has(name))
+    .sort((a, b) => getLatestProjectTimestamp(b).getTime() - getLatestProjectTimestamp(a).getTime());
+
+  // Render project list helper function
+  const renderProjectList = (projectNames: string[], isCompleted: boolean = false) => {
+    const expansionState = isCompleted ? expandedCompletedProjects : expandedProjects;
+    const toggleExpansion = isCompleted ? toggleCompletedProjectExpansion : toggleProjectExpansion;
+
+    return projectNames.map((projectName) => {
+      const projectVersions = groupedProjects[projectName];
+      const isExpanded = expansionState[projectName];
+      const projectCreationDate = projectVersions[0]?.timestamp;
+      
+      return (
+        <Collapsible 
+          key={projectName} 
+          open={isExpanded} 
+          className="border-b border-slate-200 pb-2 last:border-b-0"
+        >
+          <div className="flex items-center justify-between">
+            <CollapsibleTrigger 
+              asChild
+              onClick={() => toggleExpansion(projectName)}
+            >
+              <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2 flex-1">
+                {isExpanded ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-3">
+                    {editingProject === projectName ? (
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Input
+                          value={editProjectName}
+                          onChange={(e) => setEditProjectName(e.target.value)}
+                          className="h-6 text-sm"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveProjectEdit();
+                            if (e.key === 'Escape') handleCancelProjectEdit();
+                          }}
+                          autoFocus
+                        />
+                        <Button size="sm" className="h-6 px-2" onClick={handleSaveProjectEdit}>Save</Button>
+                        <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelProjectEdit}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span>{projectName}</span>
+                        {!isExpanded && projectCreationDate && (
+                          <span className="text-xs text-slate-400 font-normal">
+                            ({projectCreationDate.toLocaleDateString()})
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </button>
+            </CollapsibleTrigger>
+            {!isExpanded && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm" 
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleProjectCompleted(projectName);
+                  }}
+                  title={completedProjects.has(projectName) ? "Mark as active" : "Mark as completed"}
+                >
+                  {completedProjects.has(projectName) ? 
+                    <CheckCircle className="h-4 w-4 text-green-500" /> : 
+                    <Circle className="h-4 w-4 text-gray-400" />
+                  }
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm" 
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditProject(projectName);
+                  }}
+                  disabled={editingProject === projectName}
+                >
+                  <Edit className="h-4 w-4 text-blue-500" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm" 
+                  className="h-7 w-7 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteProject(projectName);
+                  }}
+                  disabled={deleteLoading === projectName}
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              </div>
+            )}
+          </div>
+          <CollapsibleContent className="ml-6 space-y-1">
+            {projectVersions.map((project) => {
+              const versionId = `${project.name}-${project.version}-${project.subversion}`;
+              return (
+                <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
+                  <div className="flex items-center flex-1">
+                    <span className="text-slate-400 mr-2">
+                      ├──
+                    </span>
+                    {editingVersion === versionId ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <span>v{project.version}.{project.subversion}-</span>
+                        <Input
+                          value={editVersionComment}
+                          onChange={(e) => setEditVersionComment(e.target.value)}
+                          className="h-6 text-sm flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveVersionEdit(project);
+                            if (e.key === 'Escape') handleCancelVersionEdit();
+                          }}
+                          autoFocus
+                        />
+                        <span>.wip ({project.timestamp.toLocaleDateString()})</span>
+                        <Button size="sm" className="h-6 px-2" onClick={() => handleSaveVersionEdit(project)}>Save</Button>
+                        <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelVersionEdit}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <span>
+                        v{project.version}.{project.subversion}-{project.comment}.wip 
+                        <span className="ml-2 text-xs text-slate-400">
+                          ({project.timestamp.toLocaleDateString()})
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                  {editingVersion !== versionId && (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm" 
+                        className="h-6 w-6 p-0"
+                        onClick={() => handleEditVersion(project)}
+                      >
+                        <Edit className="h-3 w-3 text-blue-500" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm" 
+                        className="h-6 w-6 p-0"
+                        onClick={() => handleDeleteVersion(project)}
+                        disabled={deleteVersionLoading === versionId}
+                      >
+                        <Trash2 className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </CollapsibleContent>
+        </Collapsible>
+      );
+    });
+  };
 
   // Handle project name edit
   const handleEditProject = (projectName: string) => {
@@ -670,155 +895,32 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Project History */}
-        {allProjects.length > 0 && (
+        {/* Active Project History */}
+        {activeProjectNames.length > 0 && (
           <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
             <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
-              <CardTitle className="text-xl text-center">Project History</CardTitle>
+              <CardTitle className="text-xl text-center">Active Projects</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <ScrollArea className="max-h-96 w-full">
                 <div className="space-y-4 font-mono text-sm">
-                  {Object.entries(groupedProjects).map(([projectName, projectVersions]) => {
-                    const isExpanded = expandedProjects[projectName];
-                    const projectCreationDate = projectVersions[0]?.timestamp;
-                    
-                    return (
-                      <Collapsible 
-                        key={projectName} 
-                        open={isExpanded} 
-                        className="border-b border-slate-200 pb-2 last:border-b-0"
-                      >
-                        <div className="flex items-center justify-between">
-                          <CollapsibleTrigger 
-                            asChild
-                            onClick={() => toggleProjectExpansion(projectName)}
-                          >
-                            <button className="flex items-center font-bold text-blue-600 text-base hover:underline py-2 flex-1">
-                              {isExpanded ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex items-center gap-3">
-                                  {editingProject === projectName ? (
-                                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                      <Input
-                                        value={editProjectName}
-                                        onChange={(e) => setEditProjectName(e.target.value)}
-                                        className="h-6 text-sm"
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') handleSaveProjectEdit();
-                                          if (e.key === 'Escape') handleCancelProjectEdit();
-                                        }}
-                                        autoFocus
-                                      />
-                                      <Button size="sm" className="h-6 px-2" onClick={handleSaveProjectEdit}>Save</Button>
-                                      <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelProjectEdit}>Cancel</Button>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <span>{projectName}</span>
-                                      {!isExpanded && projectCreationDate && (
-                                        <span className="text-xs text-slate-400 font-normal">
-                                          ({projectCreationDate.toLocaleDateString()})
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-                          </CollapsibleTrigger>
-                          {!isExpanded && (
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm" 
-                                className="h-7 w-7 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditProject(projectName);
-                                }}
-                                disabled={editingProject === projectName}
-                              >
-                                <Edit className="h-4 w-4 text-blue-500" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm" 
-                                className="h-7 w-7 p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteProject(projectName);
-                                }}
-                                disabled={deleteLoading === projectName}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                        <CollapsibleContent className="ml-6 space-y-1">
-                          {projectVersions.map((project) => {
-                            const versionId = `${project.name}-${project.version}-${project.subversion}`;
-                            return (
-                              <div key={project.id} className="flex items-center justify-between text-slate-600 py-1">
-                                <div className="flex items-center flex-1">
-                                  <span className="text-slate-400 mr-2">
-                                    ├──
-                                  </span>
-                                  {editingVersion === versionId ? (
-                                    <div className="flex items-center gap-2 flex-1">
-                                      <span>v{project.version}.{project.subversion}-</span>
-                                      <Input
-                                        value={editVersionComment}
-                                        onChange={(e) => setEditVersionComment(e.target.value)}
-                                        className="h-6 text-sm flex-1"
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') handleSaveVersionEdit(project);
-                                          if (e.key === 'Escape') handleCancelVersionEdit();
-                                        }}
-                                        autoFocus
-                                      />
-                                      <span>.wip ({project.timestamp.toLocaleDateString()})</span>
-                                      <Button size="sm" className="h-6 px-2" onClick={() => handleSaveVersionEdit(project)}>Save</Button>
-                                      <Button size="sm" variant="outline" className="h-6 px-2" onClick={handleCancelVersionEdit}>Cancel</Button>
-                                    </div>
-                                  ) : (
-                                    <span>
-                                      v{project.version}.{project.subversion}-{project.comment}.wip 
-                                      <span className="ml-2 text-xs text-slate-400">
-                                        ({project.timestamp.toLocaleDateString()})
-                                      </span>
-                                    </span>
-                                  )}
-                                </div>
-                                {editingVersion !== versionId && (
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm" 
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => handleEditVersion(project)}
-                                    >
-                                      <Edit className="h-3 w-3 text-blue-500" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm" 
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => handleDeleteVersion(project)}
-                                      disabled={deleteVersionLoading === versionId}
-                                    >
-                                      <Trash2 className="h-3 w-3 text-red-500" />
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    );
-                  })}
+                  {renderProjectList(activeProjectNames, false)}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Completed Projects */}
+        {completedProjectNames.length > 0 && (
+          <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
+            <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 text-white rounded-t-lg">
+              <CardTitle className="text-xl text-center">Completed Projects</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <ScrollArea className="max-h-96 w-full">
+                <div className="space-y-4 font-mono text-sm">
+                  {renderProjectList(completedProjectNames, true)}
                 </div>
               </ScrollArea>
             </CardContent>
