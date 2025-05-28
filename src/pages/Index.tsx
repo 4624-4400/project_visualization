@@ -57,7 +57,8 @@ const Index = () => {
         // Load completed projects from localStorage
         const savedCompletedProjects = localStorage.getItem('completedProjects');
         if (savedCompletedProjects) {
-          setCompletedProjects(new Set(JSON.parse(savedCompletedProjects)));
+          const completedProjectsArray: string[] = JSON.parse(savedCompletedProjects);
+          setCompletedProjects(new Set(completedProjectsArray));
         }
         
         setDataLoaded(true);
