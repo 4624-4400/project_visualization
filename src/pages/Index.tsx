@@ -107,7 +107,7 @@ const Index = () => {
 
   // Toggle completed status for a project
   const toggleProjectCompleted = (projectName: string) => {
-    const newCompletedProjects = new Set<string>(completedProjects);
+    const newCompletedProjects = new Set(completedProjects);
     if (newCompletedProjects.has(projectName)) {
       newCompletedProjects.delete(projectName);
     } else {
@@ -899,7 +899,7 @@ const Index = () => {
         {/* Active Project History */}
         {activeProjectNames.length > 0 && (
           <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
-            <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Active Projects</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -915,7 +915,7 @@ const Index = () => {
         {/* Completed Projects */}
         {completedProjectNames.length > 0 && (
           <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
-            <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Completed Projects</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
