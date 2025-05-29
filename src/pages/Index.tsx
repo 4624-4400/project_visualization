@@ -7,9 +7,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { Project, fetchProjects, addProject, deleteProject, updateProjectName, updateVersionComment, isSupabaseConfigured } from '@/lib/supabase';
-import { ChevronDown, ChevronRight, Trash2, Edit, Download, Upload, CheckCircle, Circle } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2, Edit, Download, Upload, Square, CheckSquare } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const Index = () => {
@@ -77,9 +78,15 @@ const Index = () => {
     loadProjects();
   }, []);
 
-  // Get unique project names for selection
+  // Get unique project names for selection - ordered by most recent
   const allProjects = isSupabaseConfigured ? projects : localProjects;
-  const uniqueProjects = Array.from(new Set(allProjects.map(p => p.name)));
+  const uniqueProjectsWithTimestamps = Array.from(new Set(allProjects.map(p => p.name)))
+    .map(name => ({
+      name,
+      latestTimestamp: getLatestProjectTimestamp(name)
+    }))
+    .sort((a, b) => b.latestTimestamp.getTime() - a.latestTimestamp.getTime())
+    .map(item => item.name);
 
   // Get latest version for selected project
   const getLatestVersion = (projectName: string) => {
@@ -105,9 +112,9 @@ const Index = () => {
     return new Date(Math.max(...projectVersions.map(p => p.timestamp.getTime())));
   };
 
-  // Toggle completed status for a project
+  // Toggle completed status for a project - Fixed TypeScript error
   const toggleProjectCompleted = (projectName: string) => {
-    const newCompletedProjects = new Set(completedProjects);
+    const newCompletedProjects = new Set<string>(Array.from(completedProjects));
     if (newCompletedProjects.has(projectName)) {
       newCompletedProjects.delete(projectName);
     } else {
@@ -494,8 +501,8 @@ const Index = () => {
                   title={completedProjects.has(projectName) ? "Mark as active" : "Mark as completed"}
                 >
                   {completedProjects.has(projectName) ? 
-                    <CheckCircle className="h-4 w-4 text-green-500" /> : 
-                    <Circle className="h-4 w-4 text-gray-400" />
+                    <CheckSquare className="h-4 w-4 text-green-500" /> : 
+                    <Square className="h-4 w-4 text-gray-400" />
                   }
                 </Button>
                 <Button
@@ -775,7 +782,7 @@ const Index = () => {
                   variant={!isNewProject ? "default" : "outline"}
                   onClick={() => setIsNewProject(false)}
                   className="flex-1 bg-blue-500 hover:bg-blue-600"
-                  disabled={uniqueProjects.length === 0}
+                  disabled={uniqueProjectsWithTimestamps.length === 0}
                 >
                   Existing Project
                 </Button>
@@ -801,7 +808,7 @@ const Index = () => {
                         <SelectValue placeholder="Choose a project..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {uniqueProjects.map((name) => (
+                        {uniqueProjectsWithTimestamps.map((name) => (
                           <SelectItem key={name} value={name}>
                             {name}
                           </SelectItem>
@@ -896,10 +903,10 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Active Project History */}
+        {/* Active Project History - Blue and Yellow theme */}
         {activeProjectNames.length > 0 && (
           <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
-            <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 text-white rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-600 to-yellow-500 text-white rounded-t-lg">
               <CardTitle className="text-xl text-center">Active Projects</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
@@ -912,7 +919,7 @@ const Index = () => {
           </Card>
         )}
 
-        {/* Completed Projects */}
+        {/* Completed Projects - Green and Blue theme */}
         {completedProjectNames.length > 0 && (
           <Card className="mb-6 shadow-lg bg-white/90 backdrop-blur-sm border-0">
             <CardHeader className="bg-gradient-to-r from-green-600 to-blue-500 text-white rounded-t-lg">
@@ -928,7 +935,7 @@ const Index = () => {
           </Card>
         )}
 
-        {/* Data Management Section - Moved below and made smaller */}
+        {/* Data Management Section - Blue and Yellow theme */}
         <Card className="shadow-lg bg-white/90 backdrop-blur-sm border-0">
           <CardHeader className="bg-gradient-to-r from-blue-400 to-yellow-400 text-white rounded-t-lg">
             <CardTitle className="text-lg text-center">Data Management</CardTitle>
