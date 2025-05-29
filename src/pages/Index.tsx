@@ -34,6 +34,15 @@ const Index = () => {
   const [completedProjects, setCompletedProjects] = useState<Set<string>>(new Set());
   const [expandedCompletedProjects, setExpandedCompletedProjects] = useState<Record<string, boolean>>({});
 
+  // Get latest timestamp for a project (for sorting) - moved up to fix hoisting issue
+  const getLatestProjectTimestamp = (projectName: string) => {
+    const allProjects = isSupabaseConfigured ? projects : localProjects;
+    const projectVersions = allProjects.filter(p => p.name === projectName);
+    if (projectVersions.length === 0) return new Date(0);
+    
+    return new Date(Math.max(...projectVersions.map(p => p.timestamp.getTime())));
+  };
+
   // Load projects from Supabase on component mount
   useEffect(() => {
     const loadProjects = async () => {
@@ -104,17 +113,9 @@ const Index = () => {
     return sortedVersions[0];
   };
 
-  // Get latest timestamp for a project (for sorting)
-  const getLatestProjectTimestamp = (projectName: string) => {
-    const projectVersions = allProjects.filter(p => p.name === projectName);
-    if (projectVersions.length === 0) return new Date(0);
-    
-    return new Date(Math.max(...projectVersions.map(p => p.timestamp.getTime())));
-  };
-
   // Toggle completed status for a project - Fixed TypeScript error
   const toggleProjectCompleted = (projectName: string) => {
-    const newCompletedProjects = new Set<string>(Array.from(completedProjects));
+    const newCompletedProjects = new Set<string>(completedProjects);
     if (newCompletedProjects.has(projectName)) {
       newCompletedProjects.delete(projectName);
     } else {
