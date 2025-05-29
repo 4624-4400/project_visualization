@@ -87,9 +87,10 @@ const Index = () => {
     loadProjects();
   }, []);
 
-  // Get unique project names for selection - ordered by most recent
+  // Get unique project names for selection - ordered by most recent and excluding completed projects
   const allProjects = isSupabaseConfigured ? projects : localProjects;
   const uniqueProjectsWithTimestamps = Array.from(new Set(allProjects.map(p => p.name)))
+    .filter(name => !completedProjects.has(name)) // Filter out completed projects
     .map(name => ({
       name,
       latestTimestamp: getLatestProjectTimestamp(name)
@@ -115,7 +116,7 @@ const Index = () => {
 
   // Toggle completed status for a project - Fixed TypeScript error
   const toggleProjectCompleted = (projectName: string) => {
-    const newCompletedProjects = new Set<string>(completedProjects);
+    const newCompletedProjects = new Set(completedProjects);
     if (newCompletedProjects.has(projectName)) {
       newCompletedProjects.delete(projectName);
     } else {
